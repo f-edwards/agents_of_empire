@@ -38,4 +38,10 @@
 ## SEER
 ## AFCARS
 
+### t notes: ask ppl to critique it hard - are the qs clear and compellin?
+### right audience to be interested but not sympathetic - how do I convince a crim
+### audience, what do you need me to account for
 
+### progress notes: NPS is dubious but likely best, setting up for trial runs with imp==1,
+### will loop over all imps with bayesian, then pool for analysis
+### 1/31: added NPS, added census tribal areas pop, built a few models

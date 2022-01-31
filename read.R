@@ -1,12 +1,17 @@
 #########
 # read data for agents_of_empire
 
+### notes
+## revision 1/31, replace quantile imputation summary with raw
+## plan to fit model on imp 1 for test, fit full bayesian on all imputed for 
+## final
+
 ##### libraries
 library(tidyverse)
 library(haven)
 library(lubridate)
 ### read pop data 
-
+pop_aian<-read_csv("data/aianh_pop_census2010.csv")
 ### read fatal encounters
 fe <- read_csv("./data/fe_1_26_22.csv", 
                guess_max = 1e5) %>% 
@@ -136,43 +141,39 @@ fe_imp<-mice(fe_imp_dat,
 
 fe_imp_out<-complete(fe_imp, action = "long")
 
-### check counts across imps
-fe_imp_vis<-fe_imp_out %>% 
-  group_by(.imp, race_ethn) %>% 
-  summarize(n = n())
-### densities of imputed race counts
-ggplot(fe_imp_vis,
-       aes(x = n)) + 
-  geom_density() + 
-  facet_wrap(~race_ethn, scales = "free")
+# ### check counts across imps
+# fe_imp_vis<-fe_imp_out %>% 
+#   group_by(.imp, race_ethn) %>% 
+#   summarize(n = n())
+# ### densities of imputed race counts
+# ggplot(fe_imp_vis,
+#        aes(x = n)) + 
+#   geom_density() + 
+#   facet_wrap(~race_ethn, scales = "free")
 
 ### cut FE at 80th percentiles
-fe_imp_cut<-fe_imp_out %>% 
-  group_by(.imp, state, year, race_ethn) %>% 
-  summarize(n = n()) %>% 
-  ungroup() %>% 
-  group_by(state, year, race_ethn) %>% 
-  summarize(fe_deaths_mn = mean(n),
-            fe_deaths_lwr_80 = quantile(n, 0.1),
-            fe_deaths_upr_80 = quantile(n, 0.9))
+fe_imp_out<-fe_imp_out %>%
+  group_by(.imp, state, year, race_ethn) %>%
+  summarize(fe_deaths = n())
+
 
 ### read AFCARS
-fc<-read_csv("./data/afcars_all_events_state.csv")
+fc_out<-read_csv("./data/afcars_all_events_state.csv")
 ### aggregate ages, make 80th pct cut
-fc_out<-fc %>% 
-  group_by(.imp, state, year, race_ethn) %>% 
-  summarize(across(fc_entries:fc_tpr, sum)) %>% 
-  group_by(state, year, race_ethn) %>% 
-  summarize(fc_entries_mn = mean(fc_entries),
-            fc_entries_lwr_80 = quantile(fc_entries, 0.1),
-            fc_entries_upr_80 = quantile(fc_entries, 0.9),
-            fc_total_contact_mn = mean(fc_total_contact),
-            fc_total_contact_lwr_80 = quantile(fc_total_contact, 0.1),
-            fc_total_contact_upr_80 = quantile(fc_total_contact, 0.9),
-            fc_tpr_mn = mean(fc_tpr),
-            fc_tpr_lwr_80 = quantile(fc_tpr, 0.1),
-            fc_tpr_upr_80 = quantile(fc_tpr, 0.9))
-# crosswalk to state abb            
+# fc_out<-fc %>% 
+#   group_by(.imp, state, year, race_ethn) %>% 
+#   summarize(across(fc_entries:fc_tpr, sum)) %>% 
+#   group_by(state, year, race_ethn) %>% 
+#   summarize(fc_entries_mn = mean(fc_entries),
+#             fc_entries_lwr_80 = quantile(fc_entries, 0.1),
+#             fc_entries_upr_80 = quantile(fc_entries, 0.9),
+#             fc_total_contact_mn = mean(fc_total_contact),
+#             fc_total_contact_lwr_80 = quantile(fc_total_contact, 0.1),
+#             fc_total_contact_upr_80 = quantile(fc_total_contact, 0.9),
+#             fc_tpr_mn = mean(fc_tpr),
+#             fc_tpr_lwr_80 = quantile(fc_tpr, 0.1),
+#             fc_tpr_upr_80 = quantile(fc_tpr, 0.9))
+# # crosswalk to state abb            
 xwalk<-read_csv("https://gist.githubusercontent.com/dantonnoriega/bf1acd2290e15b91e6710b6fd3be0a53/raw/11d15233327c8080c9646c7e1f23052659db251d/us-state-ansi-fips.csv")
 xwalk<-xwalk %>% 
   mutate(st = as.numeric(st)) %>% 
@@ -188,12 +189,16 @@ fc_out<-fc_out %>%
     race_ethn == "Hispanic" ~ "Latinx",
     T ~ race_ethn
   ))
-
+### AK 2004 is empty
+fc_out<-fc_out %>% 
+  group_by(.imp, state, year, race_ethn) %>% 
+  summarize(across(fc_entries:fc_tpr, sum)) %>% 
+  filter(!(state=="AK" & year==2004))
 #### read in NPS data
 
 
 
-write_csv(fe_imp_cut, "./data/fe_state_imputed_1_26_22.csv")
+write_csv(fe_imp_out, "./data/fe_state_imputed_1_26_22.csv")
 write_csv(pop_st, "./data/pop_st.csv")
 write_csv(fc_out, "./data/fc_st.csv")
 

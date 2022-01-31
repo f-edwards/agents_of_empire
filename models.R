@@ -1,6 +1,6 @@
 #### models for agents of empire
 ### created 1/27/22
-### modified 1/27/22
+### modified 1/31/22
 
 ### packages
 library(tidyverse)
@@ -8,15 +8,13 @@ library(lme4)
 library(brms)
 
 ### data
+source("read_nps.R")
 ### fill in zeroes
 fe<-read_csv("./data/fe_state_imputed_1_26_22.csv")  %>% 
-  complete(state, year, race_ethn, 
-           fill = list(fe_deaths_mn = 0,
-                       fe_deaths_lwr_80 = 0,
-                       fe_deaths_upr_80 = 0))
+  complete(.imp, state, year, race_ethn, 
+           fill = list(fe_deaths = 0))
 
-fc<-read_csv("./data/fc_st.csv") %>% 
-  select(-st_fips, -stname)
+fc<-read_csv("./data/fc_st.csv") 
 
 pop<-read_csv("./data/pop_st.csv") %>% 
   filter(year>1999) %>% 
@@ -26,103 +24,94 @@ pop<-read_csv("./data/pop_st.csv") %>%
               names_prefix = "pop_")
 
 ### join for all available years (onto pop)
-
+### one imputation for now
 dat<-pop %>% 
-  left_join(fc) %>% 
-  left_join(fe)
+  left_join(fc %>% 
+              filter(.imp==1) %>% 
+              select(-.imp)) %>% 
+  left_join(fe %>% 
+              filter(.imp==1) %>% 
+              select(-.imp)) %>% 
+  left_join(nps) %>% 
+  filter(year>=2005) %>% 
+  filter(race_ethn=="AIAN")
 
 #### QUESTION 0: CORRELATION OF VIOLENCE ACROSS DOMAINS
-# 
-# ### compute unconditional correlations (or regressions) of FE and FC
-# ### start at state-year, if power is low, move to state-period
-# 
-# ### first, look at scatterplot
-# ggplot(dat %>% 
-#          filter(race_ethn == "AIAN"), 
-#        aes(x = fc_total_contact_mn / pop_child * 1e3,
-#            y = fe_deaths_mn / pop_adult * 1e5)) + 
-#   geom_point() + 
-#   geom_smooth(method = "lm")
-# 
-# ### high police killing outliers are probably low pop one death years
-# ### look at places with mort rate >20 per 100k
-# temp<-dat %>% 
-#   filter(race_ethn == "AIAN") %>% 
-#   mutate(fe_rt = fe_deaths_mn / pop_adult*1e5) %>% 
-#   filter(fe_rt>20) %>% 
-#   select(year, state, pop_adult, fe_deaths_mn)
-# ### 35 obs, maximum death count is 1.18
-# ### should smooth this with cross period or moving average
-# 
-# ### compute 5 year moving average for FE deaths
-# dat_out<-list()
-# for(i in 2004:2019){
-#   temp<-dat %>% 
-#     filter(year <= i & year >= i - 4) %>% 
-#     select(year, state, race_ethn, fe_deaths_mn,
-#            fe_deaths_lwr_80, fe_deaths_upr_80) %>% 
-#     group_by(state, race_ethn) %>% 
-#     summarize(fe_deaths_mn_5yr = mean(fe_deaths_mn),
-#               fe_deaths_lwr_80_5yr = mean(fe_deaths_lwr_80),
-#               fe_deaths_upr_80_5yr = mean(fe_deaths_upr_80)) %>% 
-#     ungroup() %>% 
-#     mutate(year = i)  
-#     
-#   
-#   dat_out[[i]]<-temp
-# }
-# 
-# dat_out<-bind_rows(dat_out)
-# dat<-dat %>% 
-#   left_join(dat_out)
-# 
-# ### visualize with moving average for FE
-# ggplot(dat %>% 
-#          filter(race_ethn == "AIAN"), 
-#        aes(x = fc_total_contact_mn / pop_child * 1e3,
-#            y = fe_deaths_mn_5yr / pop_adult * 1e5)) + 
-#   geom_point() + 
-#   geom_smooth(method = "lm")
-# 
-# ### CHECK ON OUTLIERS AGAIN, but this looks better
-# 
-# ### try x period estimate
-# cross_period<-dat %>% 
-#   select(state, race_ethn, fe_deaths_mn,
-#          fe_deaths_lwr_80, fe_deaths_upr_80) %>% 
-#   group_by(state, race_ethn) %>% 
-#   summarize(fe_deaths_mn_cross = mean(fe_deaths_mn),
-#             fe_deaths_lwr_80_cross = mean(fe_deaths_lwr_80),
-#             fe_deaths_upr_80_cross = mean(fe_deaths_upr_80)) %>% 
-#   ungroup() 
-# 
-# dat<-dat %>% 
-#   left_join(cross_period)
-# ### visualize with moving average for FE
-# ggplot(dat %>% 
-#          filter(race_ethn == "AIAN"), 
-#        aes(x = fc_total_contact_mn / pop_child * 1e3,
-#            y = fe_deaths_mn_cross / pop_adult * 1e5)) + 
-#   geom_point() + 
-#   geom_smooth(method = "lm")
-# 
-# ### still some outliers, probably 1 or 2 states with low pops
-# ### an RE model can handle it
-# 
-# ### test model - 
-# m0<-lm(I(fe_deaths_mn / pop_adult * 1e5) ~ 
-#          I(fc_total_contact_mn / pop_child * 1e3),
-#        data = dat %>% 
-#          filter(race_ethn == "AIAN"))
-# ### clear positive relationship
-# m0_re<-lmer(I(fe_deaths_mn / pop_adult * 1e5) ~ 
-#          I(fc_total_contact_mn / pop_child * 1e3) + 
-#            (1|state),
-#        data = dat %>% 
-#          filter(race_ethn == "AIAN"))
-### washes out with RE, think on that
+m0_entangled<-glmer.nb(fc_total_contact ~ 
+                         scale(I(aian_prison_pop / pop_adult)) + 
+                         (1|state),
+                       data = dat,
+                       offset = log(pop_child))
 
-### FE IS PRETTY SPARSE. LETS USE NPS FOR THIS
+#### QUESTION 1: LAND CONTESTATION
 
+
+
+
+#### QUESTION 2: TIMING OF STATE ADMISSION AND POLICY ERA
 ### state admission 
+### model with FC to start
+
+m0_admit<-glmer.nb(floor(fc_entries) ~ 
+                scale(admission_year) + 
+                  (1|state),
+                data = dat %>% 
+                  filter(race_ethn=="AIAN"),
+                offset = log(pop_child))
+
+#### baseline is there for linear time
+### now add temporal period following T's timeline
+### T's periodization
+## <1820: 1. Treaties, trade and intercourse period
+## 1820-1880: 2. Removal and reservation period
+## 1880-1920: 3. Allotment and Assimilation
+## 1920-1940: 4. Indian New Deal 
+## 1940-1960: 5. Termination period
+## 1960-Now: 6. Self determination
+
+dat<-dat %>% 
+  mutate(indian_policy_era = 
+           case_when(
+             admission_year<1820 ~ "1. Treaties, trade and intercourse period",
+             admission_year<1881 ~ "2. Removal and reservation period",
+             admission_year<1921 ~ "3. Allotment and Assimilation",
+             admission_year<1941 ~ "4. Indian New Deal",
+             admission_year<1961 ~ "5. Termination period",
+             admission_year>1960 ~ "6. Selft determnation period"
+           )) 
+
+m1_admit<-glmer.nb(floor(fc_entries_mn) ~ 
+                     #scale(admission_year) + 
+                     indian_policy_era + 
+                     (1|state),
+                   data = dat %>% 
+                     filter(race_ethn=="AIAN"),
+                   offset = log(pop_child))
+
+### clear pattern here, rates increase over time, highest in termination era admits
+### but that's only AK and HI
+
+### QUESTION 3: RESTRICTIONS ON SOVEREIGN POWER VIA LAW
+m0_pl280<-glmer.nb(floor(fc_entries_mn) ~ 
+                     pl280 + 
+                     (1|state),
+                   data = dat %>% 
+                     filter(race_ethn=="AIAN"),
+                   offset = log(pop_child))
+
+### clear pl280 relationship, condition on timing of entry?
+m1_pl280<-glmer.nb(floor(fc_entries_mn) ~ 
+                     pl280 + 
+                     indian_policy_era + 
+                     (1|state),
+                   data = dat %>% 
+                     filter(race_ethn=="AIAN"),
+                   offset = log(pop_child))
+### yep, joint relationship is there
+
+### QUESTION 4: HIGH INSTITUTIONAL CAPACITY, SOVEREIGN SHIELDS
+
+### QUESTION 6: JOINT MODELS?
+### anticipate 'control' critique for pop distribution
+### fold it into narrative of settler colonialism as structure
 
