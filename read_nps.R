@@ -23,3 +23,4 @@ nps<-nps %>%
   mutate(aian_prison_pop_pct = aian_prison_pop / total_prison_pop * 100)
   
 
+write_csv(nps, "./data/state_aian_incar.csv")
