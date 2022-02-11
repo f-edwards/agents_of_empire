@@ -45,3 +45,14 @@
 ### progress notes: NPS is dubious but likely best, setting up for trial runs with imp==1,
 ### will loop over all imps with bayesian, then pool for analysis
 ### 1/31: added NPS, added census tribal areas pop, built a few models
+
+### PROJECT MERGE: From sov shields, bring inst data
+#### from sov pol, bring age_spec and map
+
+
+#### PROGRESSION OF RESULTS
+## PANE MAP WITH EACH OUTCOME (3x)
+## PANE MAP WITH EACH PREDICTOR (CRUDE)
+
+### REGRESSIONS WITH E(FC), E(INCAR)
+

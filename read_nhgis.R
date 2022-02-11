@@ -170,5 +170,20 @@ state_aian<-state_aian %>%
   filter(type=="total") %>% 
   left_join(state_aianh)
 
+### xwalk state abbreviations
+xwalk<-data.frame(STATE = state.name, state = state.abb) %>% 
+  bind_rows(data.frame(STATE = "District Of Columbia", state = "DC"))
+
+state_aian<-state_aian %>% 
+  left_join(xwalk) %>% 
+  select(-STATE, -YEAR)
+
+### as proportions
+
+state_aian<-state_aian %>% 
+  mutate(pct_AIAN_2010 = pop_aian/pop_total * 100,
+         pct_AIANH_2010 = pop_aian_aianh / pop_aian * 100) %>% 
+  select(state, pct_AIAN_2010, pct_AIANH_2010)
+
 write_csv(state_aian, "./data/aianh_pop_census2010.csv")
 

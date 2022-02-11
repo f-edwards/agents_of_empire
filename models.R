@@ -8,11 +8,21 @@ library(lme4)
 library(brms)
 
 ### data
-source("read_nps.R")
+### NATL PRISON STATS
+nps<-read_csv("./data/state_aian_incar.csv")
+### NHGIS CENSUS 2010
+census<-read_csv("./data/aianh_pop_census2010.csv")
 ### fill in zeroes
 fe<-read_csv("./data/fe_state_imputed_1_26_22.csv")  %>% 
   complete(.imp, state, year, race_ethn, 
            fill = list(fe_deaths = 0))
+#### compute as period mean (00-19)
+### avg deaths / year
+fe<-fe %>% 
+  group_by(.imp, state, race_ethn) %>% 
+  summarize(fe_deaths = mean(fe_deaths)) %>% 
+  ungroup() %>% 
+  rename(fe_imp = .imp)
 
 fc<-read_csv("./data/fc_st.csv") 
 
@@ -23,36 +33,97 @@ pop<-read_csv("./data/pop_st.csv") %>%
               values_from = pop,
               names_prefix = "pop_")
 
+# ### aianh infrastructure data
+# inst <- readRDS("./data/state_dat.rds")
+# inst<-inst %>% 
+#   select(stusps, aianh_pct_tribal_courts, 
+#          st_income_ineq) %>% 
+#   rename(state = stusps) %>% 
+#   distinct()
+
 ### join for all available years (onto pop)
 ### one imputation for now
-dat<-pop %>% 
-  left_join(fc %>% 
-              filter(.imp==1) %>% 
-              select(-.imp)) %>% 
-  left_join(fe %>% 
-              filter(.imp==1) %>% 
-              select(-.imp)) %>% 
+dat<-fc %>% 
+  left_join(fe) %>% 
   left_join(nps) %>% 
-  filter(year>=2005) %>% 
-  filter(race_ethn=="AIAN")
+  left_join(pop) %>%  
+  filter(race_ethn=="AIAN") %>% 
+  left_join(census) %>% 
+  filter(state!="DC") %>% 
+  mutate(fe_deaths_rate = fe_deaths / pop_adult * 1e5) %>% 
+  mutate(imp = paste(.imp, fe_imp, sep = "_")) %>% 
+  select(-.imp, -fe_imp) %>% 
+  select(imp, everything())
+
+### convert to list for brm_multiple
+dat_l<-list()
+imps<-unique(dat$imp)
+for(i in 1:length(imps)){
+  dat_l[[i]]<-dat %>% 
+    filter(imp == imps[i])
+}
 
 #### QUESTION 0: CORRELATION OF VIOLENCE ACROSS DOMAINS
-m0_entangled<-glmer.nb(fc_total_contact ~ 
-                         scale(I(aian_prison_pop / pop_adult)) + 
-                         (1|state),
-                       data = dat,
-                       offset = log(pop_child))
+q0_m1<-brm_multiple(fc_total_contact ~ 
+                      scale(I(aian_prison_pop / pop_adult)) + 
+                      scale(fe_deaths_rate) + 
+                      offset(log(pop_child)) + 
+                      (1|state),
+                    data = dat_l,
+                    iter = 1e4,
+                    cores = 4,
+                    family = negbinomial())
+
+q0_m2<-brm_multiple(fc_total_contact ~ 
+                      scale(fe_deaths_rate) + 
+                      offset(log(pop_child)) + 
+                      (1|state),
+                    iter = 1e4,
+                    cores = 4,
+                    data = dat_l,
+                    family = negbinomial())
+
+# q0_m1f<-glmer.nb(fc_total_contact ~ 
+#                       scale(I(aian_prison_pop / pop_adult)) + 
+#                       offset(log(pop_child)) + 
+#                       (1|state),
+#                     data = dat_l[[1]])
+### first 2 models give same results brms or lme4
+
+### yep, clear correlation
 
 #### QUESTION 1: LAND CONTESTATION
 
+library(MASS)
+select<-dplyr::select
 
+#### THINK ABT CORRELATION AIANH WITH AIAN pop PCT
+### MAYBE BE SPECIFIC TO URBAN / NOT URBAN? Relocation is the big issue here
+# qplot(pct_AIAN_2010, pct_AIANH_2010, data = dat)
+# dat %>% 
+#   filter(year==2019) %>% 
+#   summarize(corPcts = cor(pct_AIAN_2010, pct_AIANH_2010))
+### 0.8 correlation, can't include both...
 
+m0_land_AIANH<-glm.nb(fc_total_contact ~ 
+                    scale(pct_AIANH_2010) + 
+                  offset(log(pop_child)),
+                  data = dat %>% 
+                    filter(year == 2019))
+
+m0_pct_AIAN<-glm.nb(fc_total_contact ~ 
+                        scale(pct_AIAN_2010) + 
+                        offset(log(pop_child)),
+                      data = dat %>% 
+                        filter(year == 2019))
+
+### AIC IS WITHIN 1 POINT
 
 #### QUESTION 2: TIMING OF STATE ADMISSION AND POLICY ERA
 ### state admission 
 ### model with FC to start
 
-m0_admit<-glmer.nb(floor(fc_entries) ~ 
+m0_admit<-glmer.nb(fc_total_contact ~ 
                 scale(admission_year) + 
                   (1|state),
                 data = dat %>% 
@@ -77,10 +148,10 @@ dat<-dat %>%
              admission_year<1921 ~ "3. Allotment and Assimilation",
              admission_year<1941 ~ "4. Indian New Deal",
              admission_year<1961 ~ "5. Termination period",
-             admission_year>1960 ~ "6. Selft determnation period"
+             admission_year>1960 ~ "6. Self determnation period"
            )) 
 
-m1_admit<-glmer.nb(floor(fc_entries_mn) ~ 
+m1_admit<-glmer.nb(fc_total_contact ~ 
                      #scale(admission_year) + 
                      indian_policy_era + 
                      (1|state),
@@ -92,7 +163,7 @@ m1_admit<-glmer.nb(floor(fc_entries_mn) ~
 ### but that's only AK and HI
 
 ### QUESTION 3: RESTRICTIONS ON SOVEREIGN POWER VIA LAW
-m0_pl280<-glmer.nb(floor(fc_entries_mn) ~ 
+m0_pl280<-glmer.nb(fc_total_contact ~ 
                      pl280 + 
                      (1|state),
                    data = dat %>% 
@@ -100,7 +171,7 @@ m0_pl280<-glmer.nb(floor(fc_entries_mn) ~
                    offset = log(pop_child))
 
 ### clear pl280 relationship, condition on timing of entry?
-m1_pl280<-glmer.nb(floor(fc_entries_mn) ~ 
+m1_pl280<-glmer.nb(fc_total_contact ~ 
                      pl280 + 
                      indian_policy_era + 
                      (1|state),
@@ -109,9 +180,6 @@ m1_pl280<-glmer.nb(floor(fc_entries_mn) ~
                    offset = log(pop_child))
 ### yep, joint relationship is there
 
-### QUESTION 4: HIGH INSTITUTIONAL CAPACITY, SOVEREIGN SHIELDS
-
-### QUESTION 6: JOINT MODELS?
+### QUESTION 5: JOINT MODELS?
 ### anticipate 'control' critique for pop distribution
 ### fold it into narrative of settler colonialism as structure
-
