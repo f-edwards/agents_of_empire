@@ -1,11 +1,18 @@
 #### models for agents of empire
 ### created 1/27/22
-### modified 1/31/22
+### modified 2/11/22
 
 ### packages
 library(tidyverse)
 library(lme4)
 library(brms)
+library(modelr)
+library(tidybayes)
+library(ggdist)
+library(ggridges)
+
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
 
 ### data
 ### NATL PRISON STATS
@@ -50,7 +57,8 @@ dat<-fc %>%
   filter(race_ethn=="AIAN") %>% 
   left_join(census) %>% 
   filter(state!="DC") %>% 
-  mutate(fe_deaths_rate = fe_deaths / pop_adult * 1e5) %>% 
+  mutate(fe_deaths_rt_100k = fe_deaths / pop_adult * 1e5,
+         aian_prison_rt_1k = aian_prison_pop / pop_adult * 1e3) %>% 
   mutate(imp = paste(.imp, fe_imp, sep = "_")) %>% 
   select(-.imp, -fe_imp) %>% 
   select(imp, everything())
@@ -65,23 +73,18 @@ for(i in 1:length(imps)){
 
 #### QUESTION 0: CORRELATION OF VIOLENCE ACROSS DOMAINS
 q0_m1<-brm_multiple(fc_total_contact ~ 
-                      scale(I(aian_prison_pop / pop_adult)) + 
-                      scale(fe_deaths_rate) + 
+                      scale(aian_prison_rt_1k) + 
+                      scale(fe_deaths_rt_100k) + 
                       offset(log(pop_child)) + 
                       (1|state),
                     data = dat_l,
                     iter = 1e4,
-                    cores = 4,
                     family = negbinomial())
 
-q0_m2<-brm_multiple(fc_total_contact ~ 
-                      scale(fe_deaths_rate) + 
-                      offset(log(pop_child)) + 
-                      (1|state),
-                    iter = 1e4,
-                    cores = 4,
-                    data = dat_l,
-                    family = negbinomial())
+saveRDS(q0_m1, file = "./models/q0_m1.rds")
+
+
+#### THIS WORKS - CONVERT TO Z SCORE FOR JOINT PLOT
 
 # q0_m1f<-glmer.nb(fc_total_contact ~ 
 #                       scale(I(aian_prison_pop / pop_adult)) + 
@@ -183,3 +186,4 @@ m1_pl280<-glmer.nb(fc_total_contact ~
 ### QUESTION 5: JOINT MODELS?
 ### anticipate 'control' critique for pop distribution
 ### fold it into narrative of settler colonialism as structure
+

@@ -137,21 +137,10 @@ library(mice)
 rm(pop)
 gc()
 fe_imp<-mice(fe_imp_dat,
-             m = 100)
+             m = 10)
 
 fe_imp_out<-complete(fe_imp, action = "long")
 
-# ### check counts across imps
-# fe_imp_vis<-fe_imp_out %>% 
-#   group_by(.imp, race_ethn) %>% 
-#   summarize(n = n())
-# ### densities of imputed race counts
-# ggplot(fe_imp_vis,
-#        aes(x = n)) + 
-#   geom_density() + 
-#   facet_wrap(~race_ethn, scales = "free")
-
-### cut FE at 80th percentiles
 fe_imp_out<-fe_imp_out %>%
   group_by(.imp, state, year, race_ethn) %>%
   summarize(fe_deaths = n())
@@ -159,20 +148,7 @@ fe_imp_out<-fe_imp_out %>%
 
 ### read AFCARS
 fc_out<-read_csv("./data/afcars_all_events_state.csv")
-### aggregate ages, make 80th pct cut
-# fc_out<-fc %>% 
-#   group_by(.imp, state, year, race_ethn) %>% 
-#   summarize(across(fc_entries:fc_tpr, sum)) %>% 
-#   group_by(state, year, race_ethn) %>% 
-#   summarize(fc_entries_mn = mean(fc_entries),
-#             fc_entries_lwr_80 = quantile(fc_entries, 0.1),
-#             fc_entries_upr_80 = quantile(fc_entries, 0.9),
-#             fc_total_contact_mn = mean(fc_total_contact),
-#             fc_total_contact_lwr_80 = quantile(fc_total_contact, 0.1),
-#             fc_total_contact_upr_80 = quantile(fc_total_contact, 0.9),
-#             fc_tpr_mn = mean(fc_tpr),
-#             fc_tpr_lwr_80 = quantile(fc_tpr, 0.1),
-#             fc_tpr_upr_80 = quantile(fc_tpr, 0.9))
+
 # # crosswalk to state abb            
 xwalk<-read_csv("https://gist.githubusercontent.com/dantonnoriega/bf1acd2290e15b91e6710b6fd3be0a53/raw/11d15233327c8080c9646c7e1f23052659db251d/us-state-ansi-fips.csv")
 xwalk<-xwalk %>% 
