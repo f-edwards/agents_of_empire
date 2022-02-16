@@ -56,3 +56,17 @@
 
 ### REGRESSIONS WITH E(FC), E(INCAR)
 
+
+
+
+
+#### 2/16 DATA NOTES
+## STATE INCAR IS GOING TO BE THIN
+### GOING TO ADD DATA ON JAILS FROM BJS REPORT
+### AND FIGURE OUT FEDERAL CUSTODY INMATES IN NPS
+### NPS FOR STATE INCAR, CensofJails for Jail pop (via BJS report)
+### BOP OFFENDER IN PRISON AT YEAR END for fed data
+### GOING TO USE VERA FOR JAIL DATA
+### Feds report only 2887 AIAN prisoners in 2018; I see over 60k state prisoners
+
+
