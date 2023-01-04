@@ -69,4 +69,3 @@
 ### GOING TO USE VERA FOR JAIL DATA
 ### Feds report only 2887 AIAN prisoners in 2018; I see over 60k state prisoners
 
-

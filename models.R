@@ -4,14 +4,8 @@
 
 ### packages
 library(tidyverse)
-library(lme4)
 library(brms)
-library(modelr)
-library(tidybayes)
-library(ggdist)
-library(ggridges)
 
-rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
 ### data
